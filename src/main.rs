@@ -544,6 +544,116 @@ impl Board {
         eliminated
     }
 
+    /// Apply X-Wing strategy
+    /// Find a value appearing exactly twice in each of two rows (or columns)
+    /// in the same two columns (or rows), then eliminate from rest of those columns/rows
+    /// Returns the number of candidates eliminated
+    fn apply_xwing(&mut self) -> usize {
+        let mut eliminated = 0;
+
+        // Check rows for X-Wing pattern
+        for value in 1..=9 {
+            let mut row_col_pairs: Vec<(usize, u16)> = Vec::new();
+
+            // For each row, find columns where this value appears as candidate
+            for row in 0..9 {
+                let mut cols_mask = 0u16;
+                for col in 0..9 {
+                    if !self.cells[row][col].is_filled() && self.cells[row][col].is_possible(value) {
+                        cols_mask |= 1u16 << col;
+                    }
+                }
+
+                // Only interested in rows with exactly 2 candidates for this value
+                if cols_mask.count_ones() == 2 {
+                    row_col_pairs.push((row, cols_mask));
+                }
+            }
+
+            // Look for two rows with same column pattern
+            for i in 0..row_col_pairs.len() {
+                for j in (i + 1)..row_col_pairs.len() {
+                    if row_col_pairs[i].1 == row_col_pairs[j].1 {
+                        // Found X-Wing pattern: value appears in same 2 columns in rows i and j
+                        let row1 = row_col_pairs[i].0;
+                        let row2 = row_col_pairs[j].0;
+                        let cols_mask = row_col_pairs[i].1;
+
+                        // Extract the two column indices
+                        let col1 = cols_mask.trailing_zeros() as usize;
+                        let col2 = (cols_mask & !(1u16 << col1)).trailing_zeros() as usize;
+
+                        // Eliminate value from other rows in these columns
+                        for row in 0..9 {
+                            if row != row1 && row != row2 {
+                                if self.cells[row][col1].is_possible(value) {
+                                    self.cells[row][col1].eliminate(value);
+                                    eliminated += 1;
+                                }
+                                if self.cells[row][col2].is_possible(value) {
+                                    self.cells[row][col2].eliminate(value);
+                                    eliminated += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check columns for X-Wing pattern
+        for value in 1..=9 {
+            let mut col_row_pairs: Vec<(usize, u16)> = Vec::new();
+
+            // For each column, find rows where this value appears as candidate
+            for col in 0..9 {
+                let mut rows_mask = 0u16;
+                for row in 0..9 {
+                    if !self.cells[row][col].is_filled() && self.cells[row][col].is_possible(value) {
+                        rows_mask |= 1u16 << row;
+                    }
+                }
+
+                // Only interested in columns with exactly 2 candidates for this value
+                if rows_mask.count_ones() == 2 {
+                    col_row_pairs.push((col, rows_mask));
+                }
+            }
+
+            // Look for two columns with same row pattern
+            for i in 0..col_row_pairs.len() {
+                for j in (i + 1)..col_row_pairs.len() {
+                    if col_row_pairs[i].1 == col_row_pairs[j].1 {
+                        // Found X-Wing pattern: value appears in same 2 rows in columns i and j
+                        let col1 = col_row_pairs[i].0;
+                        let col2 = col_row_pairs[j].0;
+                        let rows_mask = col_row_pairs[i].1;
+
+                        // Extract the two row indices
+                        let row1 = rows_mask.trailing_zeros() as usize;
+                        let row2 = (rows_mask & !(1u16 << row1)).trailing_zeros() as usize;
+
+                        // Eliminate value from other columns in these rows
+                        for col in 0..9 {
+                            if col != col1 && col != col2 {
+                                if self.cells[row1][col].is_possible(value) {
+                                    self.cells[row1][col].eliminate(value);
+                                    eliminated += 1;
+                                }
+                                if self.cells[row2][col].is_possible(value) {
+                                    self.cells[row2][col].eliminate(value);
+                                    eliminated += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        eliminated
+    }
+
     /// Phase 4: Solver loop - perform one iteration using naked and hidden singles
     /// Finds all naked and hidden singles and fills them in
     /// Returns the number of cells filled in this iteration
@@ -551,6 +661,7 @@ impl Board {
         // First, apply constraint propagation techniques
         self.apply_pointing_pairs();
         self.apply_box_line_reduction();
+        self.apply_xwing();
         
         let mut all_singles = Vec::new();
         let mut seen = 0u128; // Bitmask for 81 cells (row * 9 + col)
