@@ -454,12 +454,103 @@ impl Board {
         eliminated
     }
 
+    /// Apply box/line reduction
+    /// If a value in a row/column appears only in one box,
+    /// eliminate it from the rest of that box in that row/column
+    /// Returns the number of candidates eliminated
+    fn apply_box_line_reduction(&mut self) -> usize {
+        let mut eliminated = 0;
+
+        // For each row
+        for row in 0..9 {
+            let row_box_start = (row / 3) * 3;
+
+            // For each value 1-9
+            for value in 1..=9 {
+                let mut boxes_with_value = 0u16; // Bitmask for boxes 0-2 (within this row band)
+                let mut found_unfilled = false;
+
+                // Find which boxes in this row can have this value
+                for col in 0..9 {
+                    if !self.cells[row][col].is_filled() && self.cells[row][col].is_possible(value) {
+                        let box_col_idx = col / 3;
+                        boxes_with_value |= 1u16 << box_col_idx;
+                        found_unfilled = true;
+                    }
+                }
+
+                // If value appears in only one box within this row
+                if found_unfilled && boxes_with_value.count_ones() == 1 {
+                    let target_box_col = boxes_with_value.trailing_zeros() as usize;
+                    let box_col_start = target_box_col * 3;
+                    let _box_idx = row_box_start / 3 * 3 + target_box_col;
+
+                    // Eliminate from rest of box in different rows
+                    for box_row_offset in 0..3 {
+                        let box_row = row_box_start + box_row_offset;
+                        if box_row != row {
+                            for box_col in box_col_start..box_col_start + 3 {
+                                if self.cells[box_row][box_col].is_possible(value) {
+                                    self.cells[box_row][box_col].eliminate(value);
+                                    eliminated += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // For each column
+        for col in 0..9 {
+            let col_box_start = (col / 3) * 3;
+
+            // For each value 1-9
+            for value in 1..=9 {
+                let mut boxes_with_value = 0u16; // Bitmask for boxes 0-2 (within this column band)
+                let mut found_unfilled = false;
+
+                // Find which boxes in this column can have this value
+                for row in 0..9 {
+                    if !self.cells[row][col].is_filled() && self.cells[row][col].is_possible(value) {
+                        let box_row_idx = row / 3;
+                        boxes_with_value |= 1u16 << box_row_idx;
+                        found_unfilled = true;
+                    }
+                }
+
+                // If value appears in only one box within this column
+                if found_unfilled && boxes_with_value.count_ones() == 1 {
+                    let target_box_row = boxes_with_value.trailing_zeros() as usize;
+                    let box_row_start = target_box_row * 3;
+                    let _box_idx = target_box_row * 3 + col_box_start / 3;
+
+                    // Eliminate from rest of box in different columns
+                    for box_col_offset in 0..3 {
+                        let box_col = col_box_start + box_col_offset;
+                        if box_col != col {
+                            for box_row in box_row_start..box_row_start + 3 {
+                                if self.cells[box_row][box_col].is_possible(value) {
+                                    self.cells[box_row][box_col].eliminate(value);
+                                    eliminated += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        eliminated
+    }
+
     /// Phase 4: Solver loop - perform one iteration using naked and hidden singles
     /// Finds all naked and hidden singles and fills them in
     /// Returns the number of cells filled in this iteration
     fn solve_one_iteration(&mut self) -> usize {
         // First, apply constraint propagation techniques
         self.apply_pointing_pairs();
+        self.apply_box_line_reduction();
         
         let mut all_singles = Vec::new();
         let mut seen = 0u128; // Bitmask for 81 cells (row * 9 + col)
