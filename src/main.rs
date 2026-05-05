@@ -89,9 +89,8 @@ impl fmt::Display for Cell {
 /// Uses bit sets for cell values and constraint tracking
 struct Board {
     cells: [[Cell; 9]; 9],
-    row_constraints: [CellMask; 9],    // Which values are possible in each row
-    col_constraints: [CellMask; 9],    // Which values are possible in each column
-    box_constraints: [CellMask; 9],    // Which values are possible in each 3x3 box
+    constraints: [CellMask; 27],    // Unified constraint matrix:
+                                    // [0-8]: rows, [9-17]: columns, [18-26]: boxes
 }
 
 impl Board {
@@ -99,9 +98,7 @@ impl Board {
     fn new() -> Self {
         Board {
             cells: [[Cell::new_empty(); 9]; 9],
-            row_constraints: [ALL_POSSIBLE; 9],
-            col_constraints: [ALL_POSSIBLE; 9],
-            box_constraints: [ALL_POSSIBLE; 9],
+            constraints: [ALL_POSSIBLE; 27],
         }
     }
 
@@ -134,9 +131,9 @@ impl Board {
 
         // Update constraints by removing this value from possibilities
         let value_bit = 1 << value;
-        self.row_constraints[row] &= !value_bit;
-        self.col_constraints[col] &= !value_bit;
-        self.box_constraints[box_idx] &= !value_bit;
+        self.constraints[row] &= !value_bit;                    // row constraint
+        self.constraints[9 + col] &= !value_bit;                // col constraint
+        self.constraints[18 + box_idx] &= !value_bit;           // box constraint
 
         // Eliminate this value from all cells in the same row
         for c in 0..9 {
@@ -568,11 +565,11 @@ ___4____6";
 
     println!("\nConstraint tracking:");
     println!("  Row 0 possible values: {:?}", 
-             (1..=9).filter(|v| (board.row_constraints[0] & (1 << v)) != 0).collect::<Vec<_>>());
+             (1..=9).filter(|v| (board.constraints[0] & (1 << v)) != 0).collect::<Vec<_>>());
     println!("  Col 0 possible values: {:?}",
-             (1..=9).filter(|v| (board.col_constraints[0] & (1 << v)) != 0).collect::<Vec<_>>());
+             (1..=9).filter(|v| (board.constraints[9] & (1 << v)) != 0).collect::<Vec<_>>());
     println!("  Box 0 possible values: {:?}",
-             (1..=9).filter(|v| (board.box_constraints[0] & (1 << v)) != 0).collect::<Vec<_>>());
+             (1..=9).filter(|v| (board.constraints[18] & (1 << v)) != 0).collect::<Vec<_>>());
 
     // Phase 3 & 4: Solver Loop with Naked Singles
     println!("\n=== Phase 3 & 4: Solver Loop - Naked Singles ===\n");
@@ -711,9 +708,7 @@ impl Clone for Board {
     fn clone(&self) -> Self {
         Board {
             cells: self.cells,
-            row_constraints: self.row_constraints,
-            col_constraints: self.col_constraints,
-            box_constraints: self.box_constraints,
+            constraints: self.constraints,
         }
     }
 }
