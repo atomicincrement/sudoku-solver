@@ -257,6 +257,29 @@ impl Board {
 
         true
     }
+
+    /// Phase 3: Find all naked singles
+    /// A naked single is a cell with exactly one possible value
+    /// Returns a vector of (row, col, value) tuples for each naked single found
+    fn find_naked_singles(&self) -> Vec<(usize, usize, u8)> {
+        let mut singles = Vec::new();
+
+        for row in 0..9 {
+            for col in 0..9 {
+                // Skip already filled cells
+                if !self.cells[row][col].is_filled() {
+                    // Check if this cell has exactly one possibility
+                    if self.cells[row][col].count_possibilities() == 1 {
+                        if let Some(value) = self.cells[row][col].get_value() {
+                            singles.push((row, col, value));
+                        }
+                    }
+                }
+            }
+        }
+
+        singles
+    }
 }
 
 impl fmt::Display for Board {
@@ -334,4 +357,18 @@ ___4____6";
              (1..=9).filter(|v| (board.col_constraints[0] & (1 << v)) != 0).collect::<Vec<_>>());
     println!("  Box 0 possible values: {:?}",
              (1..=9).filter(|v| (board.box_constraints[0] & (1 << v)) != 0).collect::<Vec<_>>());
+
+    // Phase 3: Find naked singles
+    println!("\n=== Phase 3: Solver Strategies - Naked Singles ===\n");
+    
+    let naked_singles = board.find_naked_singles();
+    println!("Found {} naked singles:", naked_singles.len());
+    
+    if naked_singles.is_empty() {
+        println!("  (None found - constraints not yet propagated enough)");
+    } else {
+        for (r, c, v) in &naked_singles {
+            println!("  Cell ({}, {}) = {}", r, c, v);
+        }
+    }
 }
