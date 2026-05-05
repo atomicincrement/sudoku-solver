@@ -295,12 +295,20 @@ impl Board {
     }
 
     /// Find hidden singles in a group of 9 cells (row, column, or box)
+    /// Uses constraints matrix to skip values already placed in the group
+    /// constraint_idx: index into constraints array (row, column, or box index)
     /// Returns (row, col, value) for each hidden single found
-    fn find_hidden_singles_in_group(&self, cells: &[(usize, usize)]) -> Vec<(usize, usize, u8)> {
+    fn find_hidden_singles_in_group(&self, cells: &[(usize, usize)], constraint_idx: usize) -> Vec<(usize, usize, u8)> {
         let mut result = Vec::new();
+        let group_constraint = self.constraints[constraint_idx];
 
         // For each value 1-9, find where it can go in this group
         for value in 1..=9 {
+            // Skip if value already placed in this group (bit not set in constraint)
+            if (group_constraint & (1 << value)) == 0 {
+                continue;
+            }
+
             let mut count = 0;
             let mut last_cell = (0, 0);
 
@@ -327,21 +335,21 @@ impl Board {
     /// Returns (row, col, value) for each hidden single found
     fn find_hidden_singles_in_row(&self, row: usize) -> Vec<(usize, usize, u8)> {
         let cells: Vec<_> = (0..9).map(|c| (row, c)).collect();
-        self.find_hidden_singles_in_group(&cells)
+        self.find_hidden_singles_in_group(&cells, row)
     }
 
     /// Find hidden singles in a specific column
     /// Returns (row, col, value) for each hidden single found
     fn find_hidden_singles_in_col(&self, col: usize) -> Vec<(usize, usize, u8)> {
         let cells: Vec<_> = (0..9).map(|r| (r, col)).collect();
-        self.find_hidden_singles_in_group(&cells)
+        self.find_hidden_singles_in_group(&cells, 9 + col)
     }
 
     /// Find hidden singles in a specific box
     /// Returns (row, col, value) for each hidden single found
     fn find_hidden_singles_in_box(&self, box_idx: usize) -> Vec<(usize, usize, u8)> {
         let cells = Self::get_box_cells(box_idx);
-        self.find_hidden_singles_in_group(&cells)
+        self.find_hidden_singles_in_group(&cells, 18 + box_idx)
     }
 
     /// Find all hidden singles in the board
