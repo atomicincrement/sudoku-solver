@@ -69,7 +69,8 @@ impl Cell {
         self.filled_value.is_some()
     }
 
-    /// Get all possible values as a vector
+    /// Get all possible values as a vector (in bitmask order)
+    #[allow(dead_code)]
     fn possibilities(&self) -> Vec<u8> {
         if self.filled_value.is_some() {
             self.filled_value.map(|v| vec![v]).unwrap_or_default()
@@ -193,6 +194,7 @@ impl Board {
     }
 
     /// Get a cell value
+    #[allow(dead_code)]
     fn get_cell(&self, row: usize, col: usize) -> Option<u8> {
         if row < 9 && col < 9 {
             self.cells[row][col].get_value()
@@ -807,22 +809,37 @@ impl Board {
     }
 
     /// Finds all naked and hidden singles and fills them in
-    /// Returns the number of cells filled in this iteration
-    fn solve_one_iteration(&mut self) -> usize {
+    /// Returns (count, vec of (row, col, value, technique)) for logging
+    fn solve_one_iteration(&mut self) -> (usize, Vec<(usize, usize, u8, String)>) {
         // First, apply constraint propagation techniques
-        self.apply_pointing_pairs();
-        self.apply_box_line_reduction();
-        self.apply_xwing();
-        self.apply_swordfish();
+        let pointing_pairs_elim = self.apply_pointing_pairs();
+        let box_line_elim = self.apply_box_line_reduction();
+        let xwing_elim = self.apply_xwing();
+        let swordfish_elim = self.apply_swordfish();
+        
+        if pointing_pairs_elim > 0 {
+            println!("  Pointing Pairs eliminated {} candidates", pointing_pairs_elim);
+        }
+        if box_line_elim > 0 {
+            println!("  Box/Line Reduction eliminated {} candidates", box_line_elim);
+        }
+        if xwing_elim > 0 {
+            println!("  X-Wing eliminated {} candidates", xwing_elim);
+        }
+        if swordfish_elim > 0 {
+            println!("  Swordfish eliminated {} candidates", swordfish_elim);
+        }
         
         let mut all_singles = Vec::new();
         let mut seen = 0u128; // Bitmask for 81 cells (row * 9 + col)
+        let mut result = Vec::new();
 
         // Find naked singles
         for (r, c, v) in self.find_naked_singles() {
             let bit_index = r * 9 + c;
             if (seen & (1u128 << bit_index)) == 0 {
-                all_singles.push((r, c, v));
+                all_singles.push((r, c, v, "Naked Single"));
+                result.push((r, c, v, "Naked Single".to_string()));
                 seen |= 1u128 << bit_index;
             }
         }
@@ -831,40 +848,23 @@ impl Board {
         for (r, c, v) in self.find_hidden_singles() {
             let bit_index = r * 9 + c;
             if (seen & (1u128 << bit_index)) == 0 {
-                all_singles.push((r, c, v));
+                all_singles.push((r, c, v, "Hidden Single"));
+                result.push((r, c, v, "Hidden Single".to_string()));
                 seen |= 1u128 << bit_index;
             }
         }
 
         let count = all_singles.len();
 
-        for (row, col, value) in all_singles {
+        for (row, col, value, _technique) in all_singles {
             // Only set if not already filled (set_cell will propagate constraints)
             if !self.cells[row][col].is_filled() {
                 self.set_cell(row, col, value);
             }
         }
 
-        // Return the number of cells filled (not candidates eliminated)
-        count
-    }
-
-    /// Solve using naked and hidden singles strategies
-    /// Applies strategies repeatedly until no more moves can be made
-    /// Returns the total number of cells filled
-    fn solve_with_singles(&mut self) -> usize {
-        let mut total_moves = 0;
-
-        loop {
-            let moves = self.solve_one_iteration();
-            total_moves += moves;
-
-            if moves == 0 {
-                break; // No more progress
-            }
-        }
-
-        total_moves
+        // Return the count and detailed info for logging
+        (count, result)
     }
 
     /// Display board showing candidates: filled cells as digit, empty cells as candidate list
@@ -957,21 +957,6 @@ ___4____6";
 
     println!("Initial board:");
     println!("{}", board);
-    if let Some(val) = board.cells[8][1].get_value() {
-        println!("  Value: {}", val);
-    }
-    
-    // Debug: check bottom-left box
-    println!("\nDebug - Bottom-left box cells:");
-    for row in 6..9 {
-        for col in 0..3 {
-            if let Some(val) = board.cells[row][col].get_value() {
-                println!("({},{}) = {} (filled)", row, col, val);
-            } else {
-                println!("({},{}) candidates: {:?}", row, col, board.cells[row][col].possibilities());
-            }
-        }
-    }
 
     // Solve with naked and hidden singles
     println!("\n=== Solving ===");
@@ -980,13 +965,15 @@ ___4____6";
     
     loop {
         iteration += 1;
-        let moves = board.solve_one_iteration();
+        let (moves, solved_cells) = board.solve_one_iteration();
         total_moves += moves;
         
         println!("Iteration {}: {} cells filled", iteration, moves);
+        for (row, col, value, technique) in &solved_cells {
+            println!("  ({},{}) = {} via {}", row, col, value, technique);
+        }
         
         if moves == 0 {
-            println!("No more progress - solver stopped");
             break;
         }
         
@@ -1000,7 +987,7 @@ ___4____6";
     println!("Board solved: {}", board.is_solved());
     println!("Board valid: {}", board.is_valid());
     
-    // Check for constraint violations (should be none after the fix)
+    // Validate constraint propagation
     let mut has_violations = false;
     for row in 0..9 {
         for col in 0..9 {
