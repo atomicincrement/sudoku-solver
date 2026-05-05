@@ -655,6 +655,147 @@ impl Board {
     }
 
     /// Phase 4: Solver loop - perform one iteration using naked and hidden singles
+    /// Applies Swordfish strategy: if a digit appears in exactly 2-3 candidates in each of 3 rows,
+    /// and these candidates span only 3 columns, eliminate the digit from other rows in those columns.
+    /// Similarly for columns. Returns the count of eliminated candidates.
+    fn apply_swordfish(&mut self) -> usize {
+        let mut eliminated = 0;
+
+        // Check rows for Swordfish pattern
+        for value in 1..=9 {
+            let mut row_col_pairs: Vec<(usize, u16)> = Vec::new();
+
+            // For each row, find columns where this value appears as candidate
+            for row in 0..9 {
+                let mut cols_mask = 0u16;
+                for col in 0..9 {
+                    if !self.cells[row][col].is_filled() && self.cells[row][col].is_possible(value) {
+                        cols_mask |= 1u16 << col;
+                    }
+                }
+
+                // Only interested in rows with 2-3 candidates for this value
+                if cols_mask.count_ones() >= 2 && cols_mask.count_ones() <= 3 {
+                    row_col_pairs.push((row, cols_mask));
+                }
+            }
+
+            // Look for three rows with combined column pattern spanning exactly 3 columns
+            for i in 0..row_col_pairs.len() {
+                for j in (i + 1)..row_col_pairs.len() {
+                    for k in (j + 1)..row_col_pairs.len() {
+                        // Combine the column masks
+                        let combined_cols = row_col_pairs[i].1 | row_col_pairs[j].1 | row_col_pairs[k].1;
+
+                        // Check if combined pattern spans exactly 3 columns
+                        if combined_cols.count_ones() == 3 {
+                            // Check if each row is confined to subset of these 3 columns
+                            if (row_col_pairs[i].1 & combined_cols) == row_col_pairs[i].1
+                                && (row_col_pairs[j].1 & combined_cols) == row_col_pairs[j].1
+                                && (row_col_pairs[k].1 & combined_cols) == row_col_pairs[k].1
+                            {
+                                // Found Swordfish pattern in rows
+                                let row1 = row_col_pairs[i].0;
+                                let row2 = row_col_pairs[j].0;
+                                let row3 = row_col_pairs[k].0;
+
+                                // Extract the three column indices
+                                let mut cols = [0usize; 3];
+                                let mut col_idx = 0;
+                                for c in 0..9 {
+                                    if (combined_cols & (1u16 << c)) != 0 {
+                                        cols[col_idx] = c;
+                                        col_idx += 1;
+                                    }
+                                }
+
+                                // Eliminate value from other rows in these columns
+                                for row in 0..9 {
+                                    if row != row1 && row != row2 && row != row3 {
+                                        for &col in &cols {
+                                            if self.cells[row][col].is_possible(value) {
+                                                self.cells[row][col].eliminate(value);
+                                                eliminated += 1;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Check columns for Swordfish pattern
+        for value in 1..=9 {
+            let mut col_row_pairs: Vec<(usize, u16)> = Vec::new();
+
+            // For each column, find rows where this value appears as candidate
+            for col in 0..9 {
+                let mut rows_mask = 0u16;
+                for row in 0..9 {
+                    if !self.cells[row][col].is_filled() && self.cells[row][col].is_possible(value) {
+                        rows_mask |= 1u16 << row;
+                    }
+                }
+
+                // Only interested in columns with 2-3 candidates for this value
+                if rows_mask.count_ones() >= 2 && rows_mask.count_ones() <= 3 {
+                    col_row_pairs.push((col, rows_mask));
+                }
+            }
+
+            // Look for three columns with combined row pattern spanning exactly 3 rows
+            for i in 0..col_row_pairs.len() {
+                for j in (i + 1)..col_row_pairs.len() {
+                    for k in (j + 1)..col_row_pairs.len() {
+                        // Combine the row masks
+                        let combined_rows = col_row_pairs[i].1 | col_row_pairs[j].1 | col_row_pairs[k].1;
+
+                        // Check if combined pattern spans exactly 3 rows
+                        if combined_rows.count_ones() == 3 {
+                            // Check if each column is confined to subset of these 3 rows
+                            if (col_row_pairs[i].1 & combined_rows) == col_row_pairs[i].1
+                                && (col_row_pairs[j].1 & combined_rows) == col_row_pairs[j].1
+                                && (col_row_pairs[k].1 & combined_rows) == col_row_pairs[k].1
+                            {
+                                // Found Swordfish pattern in columns
+                                let col1 = col_row_pairs[i].0;
+                                let col2 = col_row_pairs[j].0;
+                                let col3 = col_row_pairs[k].0;
+
+                                // Extract the three row indices
+                                let mut rows = [0usize; 3];
+                                let mut row_idx = 0;
+                                for r in 0..9 {
+                                    if (combined_rows & (1u16 << r)) != 0 {
+                                        rows[row_idx] = r;
+                                        row_idx += 1;
+                                    }
+                                }
+
+                                // Eliminate value from other columns in these rows
+                                for col in 0..9 {
+                                    if col != col1 && col != col2 && col != col3 {
+                                        for &row in &rows {
+                                            if self.cells[row][col].is_possible(value) {
+                                                self.cells[row][col].eliminate(value);
+                                                eliminated += 1;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        eliminated
+    }
+
     /// Finds all naked and hidden singles and fills them in
     /// Returns the number of cells filled in this iteration
     fn solve_one_iteration(&mut self) -> usize {
@@ -662,6 +803,7 @@ impl Board {
         self.apply_pointing_pairs();
         self.apply_box_line_reduction();
         self.apply_xwing();
+        self.apply_swordfish();
         
         let mut all_singles = Vec::new();
         let mut seen = 0u128; // Bitmask for 81 cells (row * 9 + col)
