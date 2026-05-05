@@ -40,6 +40,8 @@ Research and implement sudoku solving techniques in order of complexity:
 * **Hidden Singles**: Values that can only go in one place in a row/column/box
 * **Pointing Pairs**: Eliminate candidates using box-row/box-column intersections
 * **Box/Line Reduction**: Remove candidates from boxes using row/column constraints
+* **X-Wing**: Identify rectangular patterns where a value appears exactly twice in two rows/columns, allowing elimination from other cells in those columns/rows
+* **Swordfish**: Generalization of X-Wing - identify patterns where a value appears in exactly three rows (in exactly three columns), allowing elimination from other cells
 * Backtracking as a fallback if logical deduction stalls
 
 ### Phase 4: Solver Implementation
