@@ -860,7 +860,7 @@ impl Board {
         let max_cand_u32 = max_candidates as u32;
         for (row_idx, row) in self.cells.iter().enumerate() {
             if row_idx > 0 && row_idx % 3 == 0 {
-                println!("------+-------+------");
+                println!("---------+---------+---------");
             }
 
             for (col_idx, cell) in row.iter().enumerate() {
@@ -870,7 +870,7 @@ impl Board {
 
                 if cell.is_filled() {
                     if let Some(val) = cell.get_value() {
-                        print!("{} ", val);
+                        print!("{:>3}", val);
                     }
                 } else if cell.count_possibilities() <= max_cand_u32 {
                     let mut candidates = String::new();
@@ -879,9 +879,13 @@ impl Board {
                             candidates.push_str(&digit.to_string());
                         }
                     }
-                    print!("{:>3} ", candidates);
+                    print!("{:>3}", candidates);
                 } else {
-                    print!("  . ");
+                    print!("  .");
+                }
+                
+                if col_idx < 8 {
+                    print!(" ");
                 }
             }
             println!();
