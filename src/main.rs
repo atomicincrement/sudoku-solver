@@ -853,6 +853,40 @@ impl Board {
 
         total_moves
     }
+
+    /// Display board showing candidates: filled cells as digit, empty cells as candidate list
+    /// Only shows cells with N or fewer candidates (or filled cells)
+    fn print_candidates(&self, max_candidates: usize) {
+        let max_cand_u32 = max_candidates as u32;
+        for (row_idx, row) in self.cells.iter().enumerate() {
+            if row_idx > 0 && row_idx % 3 == 0 {
+                println!("------+-------+------");
+            }
+
+            for (col_idx, cell) in row.iter().enumerate() {
+                if col_idx > 0 && col_idx % 3 == 0 {
+                    print!("| ");
+                }
+
+                if cell.is_filled() {
+                    if let Some(val) = cell.get_value() {
+                        print!("{} ", val);
+                    }
+                } else if cell.count_possibilities() <= max_cand_u32 {
+                    let mut candidates = String::new();
+                    for digit in 1..=9 {
+                        if cell.is_possible(digit) {
+                            candidates.push_str(&digit.to_string());
+                        }
+                    }
+                    print!("{:>3} ", candidates);
+                } else {
+                    print!("  . ");
+                }
+            }
+            println!();
+        }
+    }
 }
 
 impl fmt::Display for Board {
@@ -926,6 +960,9 @@ ___4____6";
     } else {
         println!("\nBoard after solving with singles:");
         println!("{}", board);
+        
+        println!("\nCells with 3 or fewer candidates:");
+        board.print_candidates(3);
     }
 }
 
