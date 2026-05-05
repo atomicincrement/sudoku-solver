@@ -105,6 +105,22 @@ impl Board {
         }
     }
 
+    /// Initialize the board from a string representation
+    /// Supports newlines and any non-digit characters as empty cells
+    /// Digits 1-9 are placed on the board
+    fn init_from_string(&mut self, puzzle: &str) {
+        let mut row = 0;
+        for line in puzzle.lines() {
+            for (col, ch) in line.chars().enumerate() {
+                if ch.is_digit(10) && ch != '0' {
+                    let value = ch.to_digit(10).unwrap() as u8;
+                    self.set_cell(row, col, value);
+                }
+            }
+            row += 1;
+        }
+    }
+
     /// Set a cell to a fixed value and propagate constraints
     /// Eliminates the value from all cells in the same row, column, and box
     /// Returns true if valid, false if conflict detected
@@ -576,16 +592,7 @@ ___4____6";
     println!("{}\n", vincents_challenge);
 
     // Parse and initialize the board
-    let mut row = 0;
-    for line in vincents_challenge.lines() {
-        for (col, ch) in line.chars().enumerate() {
-            if ch.is_digit(10) {
-                let value = ch.to_digit(10).unwrap() as u8;
-                board.set_cell(row, col, value);
-            }
-        }
-        row += 1;
-    }
+    board.init_from_string(vincents_challenge);
 
     println!("Board after initialization:");
     println!("{}", board);
