@@ -297,100 +297,54 @@ impl Board {
         singles
     }
 
-    /// Find hidden singles in a specific row
+    /// Find hidden singles in a group of 9 cells (row, column, or box)
     /// Returns (row, col, value) for each hidden single found
-    fn find_hidden_singles_in_row(&self, row: usize) -> Vec<(usize, usize, u8)> {
+    fn find_hidden_singles_in_group(&self, cells: &[(usize, usize)]) -> Vec<(usize, usize, u8)> {
         let mut result = Vec::new();
 
-        // For each value 1-9, find where it can go in this row
+        // For each value 1-9, find where it can go in this group
         for value in 1..=9 {
-            let mut possible_cols = Vec::new();
-            let mut already_placed = false;
+            let mut count = 0;
+            let mut last_cell = (0, 0);
 
-            for col in 0..9 {
-                // Skip filled cells
-                if self.cells[row][col].is_filled() {
-                    // If it's already filled with this value, mark it and skip
-                    if let Some(v) = self.cells[row][col].get_value() {
-                        if v == value {
-                            already_placed = true;
-                            break;
-                        }
+            for (r, c) in cells {
+                if !self.cells[*r][*c].is_filled() && self.cells[*r][*c].is_possible(value) {
+                    count += 1;
+                    last_cell = (*r, *c);
+                    if count > 1 {
+                        break; // Early exit - not a hidden single
                     }
-                } else if self.cells[row][col].is_possible(value) {
-                    possible_cols.push(col);
                 }
             }
 
-            // If value can only go in one place and isn't already placed, it's a hidden single
-            if !already_placed && possible_cols.len() == 1 {
-                result.push((row, possible_cols[0], value));
+            // If value appears in exactly one cell, it's a hidden single
+            if count == 1 {
+                result.push((last_cell.0, last_cell.1, value));
             }
         }
 
         result
+    }
+
+    /// Find hidden singles in a specific row
+    /// Returns (row, col, value) for each hidden single found
+    fn find_hidden_singles_in_row(&self, row: usize) -> Vec<(usize, usize, u8)> {
+        let cells: Vec<_> = (0..9).map(|c| (row, c)).collect();
+        self.find_hidden_singles_in_group(&cells)
     }
 
     /// Find hidden singles in a specific column
     /// Returns (row, col, value) for each hidden single found
     fn find_hidden_singles_in_col(&self, col: usize) -> Vec<(usize, usize, u8)> {
-        let mut result = Vec::new();
-
-        for value in 1..=9 {
-            let mut possible_rows = Vec::new();
-            let mut already_placed = false;
-
-            for row in 0..9 {
-                if self.cells[row][col].is_filled() {
-                    if let Some(v) = self.cells[row][col].get_value() {
-                        if v == value {
-                            already_placed = true;
-                            break;
-                        }
-                    }
-                } else if self.cells[row][col].is_possible(value) {
-                    possible_rows.push(row);
-                }
-            }
-
-            if !already_placed && possible_rows.len() == 1 {
-                result.push((possible_rows[0], col, value));
-            }
-        }
-
-        result
+        let cells: Vec<_> = (0..9).map(|r| (r, col)).collect();
+        self.find_hidden_singles_in_group(&cells)
     }
 
     /// Find hidden singles in a specific box
     /// Returns (row, col, value) for each hidden single found
     fn find_hidden_singles_in_box(&self, box_idx: usize) -> Vec<(usize, usize, u8)> {
-        let mut result = Vec::new();
-        let box_cells = Self::get_box_cells(box_idx);
-
-        for value in 1..=9 {
-            let mut possible_cells = Vec::new();
-            let mut already_placed = false;
-
-            for (r, c) in &box_cells {
-                if self.cells[*r][*c].is_filled() {
-                    if let Some(v) = self.cells[*r][*c].get_value() {
-                        if v == value {
-                            already_placed = true;
-                            break;
-                        }
-                    }
-                } else if self.cells[*r][*c].is_possible(value) {
-                    possible_cells.push((*r, *c));
-                }
-            }
-
-            if !already_placed && possible_cells.len() == 1 {
-                let (r, c) = possible_cells[0];
-                result.push((r, c, value));
-            }
-        }
-
-        result
+        let cells = Self::get_box_cells(box_idx);
+        self.find_hidden_singles_in_group(&cells)
     }
 
     /// Find all hidden singles in the board
