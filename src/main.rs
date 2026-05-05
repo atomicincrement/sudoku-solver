@@ -915,7 +915,20 @@ impl Board {
                     if let Some(val) = cell.get_value() {
                         print!("{:>3}", val);
                     }
+                } else if cell.count_possibilities() == 0 {
+                    // Error state: no candidates
+                    print!(" XX");
+                } else if cell.count_possibilities() == 1 {
+                    // Naked single not yet filled
+                    let mut candidates = String::new();
+                    for digit in 1..=9 {
+                        if cell.is_possible(digit) {
+                            candidates.push_str(&digit.to_string());
+                        }
+                    }
+                    print!("{:>3}", candidates);
                 } else if cell.count_possibilities() <= max_cand_u32 {
+                    // Show candidates for cells with <= max
                     let mut candidates = String::new();
                     for digit in 1..=9 {
                         if cell.is_possible(digit) {
@@ -924,6 +937,7 @@ impl Board {
                     }
                     print!("{:>3}", candidates);
                 } else {
+                    // More than max candidates, show dot
                     print!("  .");
                 }
                 

@@ -107,3 +107,16 @@ Cells with 3 or fewer candidates:
  13   8 278 |   4   .   . |   .   .   6
 ```
 
+### 2
+
+**Issue:** Blank spaces in the candidate display mean the cell has more than 3 candidates (normally shown as `.` for 4+ candidates).
+
+However, cells with exactly 1 candidate (naked singles not yet filled) should also be displayed, as should cells with 0 candidates (error state).
+
+**Fix:** Updated `print_candidates()` to:
+- Show `XX` for cells with 0 candidates (error state - sudoku violation)
+- Always show cells with exactly 1 candidate (not just 2-3)
+- Show `.` only for cells with 4+ candidates
+
+This makes it easy to spot naked singles that haven't been filled yet (they now appear with their single digit) and error states (cells with no valid candidates).
+
