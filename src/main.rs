@@ -280,6 +280,38 @@ impl Board {
 
         singles
     }
+
+    /// Phase 4: Solver loop - perform one iteration using naked singles
+    /// Finds all naked singles and fills them in
+    /// Returns the number of cells filled in this iteration
+    fn solve_one_iteration(&mut self) -> usize {
+        let naked_singles = self.find_naked_singles();
+        let count = naked_singles.len();
+
+        for (row, col, value) in naked_singles {
+            self.set_cell(row, col, value);
+        }
+
+        count
+    }
+
+    /// Solve using only naked singles strategy
+    /// Applies naked singles repeatedly until no more moves can be made
+    /// Returns the total number of cells filled
+    fn solve_with_naked_singles(&mut self) -> usize {
+        let mut total_moves = 0;
+
+        loop {
+            let moves = self.solve_one_iteration();
+            total_moves += moves;
+
+            if moves == 0 {
+                break; // No more progress
+            }
+        }
+
+        total_moves
+    }
 }
 
 impl fmt::Display for Board {
@@ -358,17 +390,57 @@ ___4____6";
     println!("  Box 0 possible values: {:?}",
              (1..=9).filter(|v| (board.box_constraints[0] & (1 << v)) != 0).collect::<Vec<_>>());
 
-    // Phase 3: Find naked singles
-    println!("\n=== Phase 3: Solver Strategies - Naked Singles ===\n");
+    // Phase 3 & 4: Solver Loop with Naked Singles
+    println!("\n=== Phase 3 & 4: Solver Loop - Naked Singles ===\n");
     
-    let naked_singles = board.find_naked_singles();
-    println!("Found {} naked singles:", naked_singles.len());
+    // First, show initial state - no naked singles
+    println!("Step 0 - Initial state:");
+    let initial_singles = board.find_naked_singles();
+    println!("Found {} naked singles", initial_singles.len());
     
-    if naked_singles.is_empty() {
-        println!("  (None found - constraints not yet propagated enough)");
-    } else {
-        for (r, c, v) in &naked_singles {
-            println!("  Cell ({}, {}) = {}", r, c, v);
+    // Apply first iteration
+    println!("\nStep 1 - Applying first iteration of naked singles:");
+    let moves_step_1 = board.solve_one_iteration();
+    println!("Filled {} cells with naked singles", moves_step_1);
+    
+    if moves_step_1 > 0 {
+        println!("\nBoard after step 1:");
+        println!("{}", board);
+        
+        println!("Board validation:");
+        println!("  Valid: {}", board.is_valid());
+        println!("  Solved: {}", board.is_solved());
+        
+        // Check for naked singles after step 1
+        let step_1_singles = board.find_naked_singles();
+        println!("\nFound {} naked singles after step 1", step_1_singles.len());
+        if !step_1_singles.is_empty() {
+            println!("Next naked singles to fill:");
+            for (r, c, v) in step_1_singles.iter().take(5) {
+                println!("  Cell ({}, {}) = {}", r, c, v);
+            }
+            if step_1_singles.len() > 5 {
+                println!("  ... and {} more", step_1_singles.len() - 5);
+            }
+        }
+    }
+    
+    // Try full solve with naked singles only
+    println!("\n=== Full Solve with Naked Singles Only ===");
+    let mut solve_board = board.clone();
+    let total_moves = solve_board.solve_with_naked_singles();
+    println!("Total moves made: {}", total_moves);
+    println!("Board solved: {}", solve_board.is_solved());
+    println!("Board valid: {}", solve_board.is_valid());
+}
+
+impl Clone for Board {
+    fn clone(&self) -> Self {
+        Board {
+            cells: self.cells,
+            row_constraints: self.row_constraints,
+            col_constraints: self.col_constraints,
+            box_constraints: self.box_constraints,
         }
     }
 }
