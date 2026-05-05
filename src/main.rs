@@ -105,7 +105,8 @@ impl Board {
         }
     }
 
-    /// Set a cell to a fixed value
+    /// Set a cell to a fixed value and propagate constraints
+    /// Eliminates the value from all cells in the same row, column, and box
     /// Returns true if valid, false if conflict detected
     fn set_cell(&mut self, row: usize, col: usize, value: u8) -> bool {
         if row >= 9 || col >= 9 || value < 1 || value > 9 {
@@ -121,10 +122,33 @@ impl Board {
         self.col_constraints[col] &= !value_bit;
         self.box_constraints[box_idx] &= !value_bit;
 
+        // Eliminate this value from all cells in the same row
+        for c in 0..9 {
+            if c != col {
+                self.cells[row][c].eliminate(value);
+            }
+        }
+
+        // Eliminate this value from all cells in the same column
+        for r in 0..9 {
+            if r != row {
+                self.cells[r][col].eliminate(value);
+            }
+        }
+
+        // Eliminate this value from all cells in the same box
+        let box_cells = Self::get_box_cells(box_idx);
+        for (r, c) in box_cells {
+            if (r, c) != (row, col) {
+                self.cells[r][c].eliminate(value);
+            }
+        }
+
         true
     }
 
     /// Get the box index (0-8) for a given row and column
+    #[allow(dead_code)]
     fn get_box_index(row: usize, col: usize) -> usize {
         (row / 3) * 3 + (col / 3)
     }
@@ -157,6 +181,52 @@ impl Board {
         self.cells.iter().all(|row| row.iter().all(|cell| cell.is_filled()))
     }
 
+    /// Check for duplicate values in a row
+    fn has_row_conflicts(&self, row: usize) -> bool {
+        let mut seen = 0u16;
+        for col in 0..9 {
+            if let Some(value) = self.cells[row][col].get_value() {
+                let bit = 1 << value;
+                if (seen & bit) != 0 {
+                    return true; // Duplicate found
+                }
+                seen |= bit;
+            }
+        }
+        false
+    }
+
+    /// Check for duplicate values in a column
+    fn has_col_conflicts(&self, col: usize) -> bool {
+        let mut seen = 0u16;
+        for row in 0..9 {
+            if let Some(value) = self.cells[row][col].get_value() {
+                let bit = 1 << value;
+                if (seen & bit) != 0 {
+                    return true; // Duplicate found
+                }
+                seen |= bit;
+            }
+        }
+        false
+    }
+
+    /// Check for duplicate values in a box
+    fn has_box_conflicts(&self, box_idx: usize) -> bool {
+        let mut seen = 0u16;
+        let box_cells = Self::get_box_cells(box_idx);
+        for (r, c) in box_cells {
+            if let Some(value) = self.cells[r][c].get_value() {
+                let bit = 1 << value;
+                if (seen & bit) != 0 {
+                    return true; // Duplicate found
+                }
+                seen |= bit;
+            }
+        }
+        false
+    }
+
     /// Check if the board is valid (no conflicts)
     fn is_valid(&self) -> bool {
         // All cells must have at least one possibility
@@ -164,15 +234,25 @@ impl Board {
             return false;
         }
 
-        // Each constraint must have at least one bit set
-        if self.row_constraints.iter().any(|&c| c == 0) {
-            return false;
+        // Check for duplicate values in each row
+        for row in 0..9 {
+            if self.has_row_conflicts(row) {
+                return false;
+            }
         }
-        if self.col_constraints.iter().any(|&c| c == 0) {
-            return false;
+
+        // Check for duplicate values in each column
+        for col in 0..9 {
+            if self.has_col_conflicts(col) {
+                return false;
+            }
         }
-        if self.box_constraints.iter().any(|&c| c == 0) {
-            return false;
+
+        // Check for duplicate values in each box
+        for box_idx in 0..9 {
+            if self.has_box_conflicts(box_idx) {
+                return false;
+            }
         }
 
         true
@@ -199,7 +279,7 @@ impl fmt::Display for Board {
 }
 
 fn main() {
-    // Test Phase 1: Core data structure
+    // Phase 2: Board Initialization with Constraint Propagation
     let mut board = Board::new();
 
     // Vincent's challenge - use _ for empty cells
@@ -213,6 +293,11 @@ __5__7___
 _9__1___8
 ___4____6";
 
+    println!("=== Phase 2: Board Initialization ===\n");
+    println!("Loading Vincent's Challenge puzzle:");
+    println!("{}\n", vincents_challenge);
+
+    // Parse and initialize the board
     let mut row = 0;
     for line in vincents_challenge.lines() {
         for (col, ch) in line.chars().enumerate() {
@@ -224,15 +309,29 @@ ___4____6";
         row += 1;
     }
 
-    println!("Sudoku Board (Vincent's Challenge):");
+    println!("Board after initialization:");
     println!("{}", board);
 
-    println!("Board is valid: {}", board.is_valid());
-    println!("Board is solved: {}", board.is_solved());
+    println!("Board validation:");
+    println!("  Valid: {}", board.is_valid());
+    println!("  Solved: {}", board.is_solved());
 
-    // Test cell mask operations
-    let mut test_cell = Cell::new_empty();
-    println!("\nTest cell possibilities: {:?}", test_cell.possibilities());
-    test_cell.eliminate(5);
-    println!("After eliminating 5: {:?}", test_cell.possibilities());
+    println!("\nCell possibilities after constraint propagation:");
+    // Display a few example cells and their possibilities
+    for (row, col) in &[(0, 2), (0, 3), (1, 1), (7, 0)] {
+        if let Some(value) = board.get_cell(*row, *col) {
+            println!("  Cell ({}, {}) = {} (fixed)", row, col, value);
+        } else {
+            let possibilities = board.cells[*row][*col].possibilities();
+            println!("  Cell ({}, {}) = {:?}", row, col, possibilities);
+        }
+    }
+
+    println!("\nConstraint tracking:");
+    println!("  Row 0 possible values: {:?}", 
+             (1..=9).filter(|v| (board.row_constraints[0] & (1 << v)) != 0).collect::<Vec<_>>());
+    println!("  Col 0 possible values: {:?}",
+             (1..=9).filter(|v| (board.col_constraints[0] & (1 << v)) != 0).collect::<Vec<_>>());
+    println!("  Box 0 possible values: {:?}",
+             (1..=9).filter(|v| (board.box_constraints[0] & (1 << v)) != 0).collect::<Vec<_>>());
 }
