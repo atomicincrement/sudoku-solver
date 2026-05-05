@@ -531,7 +531,6 @@ impl fmt::Display for Board {
 }
 
 fn main() {
-    // Phase 2: Board Initialization with Constraint Propagation
     let mut board = Board::new();
 
     // Vincent's challenge - use _ for empty cells
@@ -545,164 +544,19 @@ __5__7___
 _9__1___8
 ___4____6";
 
-    println!("=== Phase 2: Board Initialization ===\n");
-    println!("Loading Vincent's Challenge puzzle:");
-    println!("{}\n", vincents_challenge);
-
-    // Parse and initialize the board
     board.init_from_string(vincents_challenge);
 
-    println!("Board after initialization:");
+    println!("Initial board:");
     println!("{}", board);
 
-    println!("Board validation:");
-    println!("  Valid: {}", board.is_valid());
-    println!("  Solved: {}", board.is_solved());
-
-    println!("\nCell possibilities after constraint propagation:");
-    // Display a few example cells and their possibilities
-    for (row, col) in &[(0, 2), (0, 3), (1, 1), (7, 0)] {
-        if let Some(value) = board.get_cell(*row, *col) {
-            println!("  Cell ({}, {}) = {} (fixed)", row, col, value);
-        } else {
-            let possibilities = board.cells[*row][*col].possibilities();
-            println!("  Cell ({}, {}) = {:?}", row, col, possibilities);
-        }
-    }
-
-    println!("\nConstraint tracking:");
-    println!("  Row 0 possible values: {:?}", 
-             (1..=9).filter(|v| (board.constraints[0] & (1 << v)) != 0).collect::<Vec<_>>());
-    println!("  Col 0 possible values: {:?}",
-             (1..=9).filter(|v| (board.constraints[9] & (1 << v)) != 0).collect::<Vec<_>>());
-    println!("  Box 0 possible values: {:?}",
-             (1..=9).filter(|v| (board.constraints[18] & (1 << v)) != 0).collect::<Vec<_>>());
-
-    // Phase 3 & 4: Solver Loop with Naked Singles
-    println!("\n=== Phase 3 & 4: Solver Loop - Naked Singles ===\n");
-    
-    // First, show initial state - no naked singles
-    println!("Step 0 - Initial state:");
-    let initial_singles = board.find_naked_singles();
-    println!("Found {} naked singles", initial_singles.len());
-    
-    // Apply first iteration
-    println!("\nStep 1 - Applying first iteration of naked and hidden singles:");
-    
-    let naked_before = board.find_naked_singles();
-    let hidden_before = board.find_hidden_singles();
-    
-    println!("Found {} naked singles, {} hidden singles", naked_before.len(), hidden_before.len());
-    
-    if !hidden_before.is_empty() {
-        println!("Hidden singles found:");
-        for (r, c, v) in hidden_before.iter().take(5) {
-            println!("  Cell ({}, {}) = {} (hidden single)", r, c, v);
-        }
-        if hidden_before.len() > 5 {
-            println!("  ... and {} more", hidden_before.len() - 5);
-        }
-    }
-    
-    let moves_step_1 = board.solve_one_iteration();
-    println!("Filled {} cells total", moves_step_1);
-    
-    if moves_step_1 > 0 {
-        println!("\nBoard after step 1:");
-        println!("{}", board);
-        
-        println!("Board validation:");
-        println!("  Valid: {}", board.is_valid());
-        println!("  Solved: {}", board.is_solved());
-        
-        // Check for naked singles after step 1
-        let step_1_singles = board.find_naked_singles();
-        println!("\nFound {} naked singles after step 1", step_1_singles.len());
-        if !step_1_singles.is_empty() {
-            println!("Next naked singles to fill:");
-            for (r, c, v) in step_1_singles.iter().take(5) {
-                println!("  Cell ({}, {}) = {}", r, c, v);
-            }
-            if step_1_singles.len() > 5 {
-                println!("  ... and {} more", step_1_singles.len() - 5);
-            }
-        }
-    }
-    
-    // Test pointing pairs in the center box
-    println!("\n=== Testing Pointing Pairs - Center Box (Box 4) ===");
-    
-    // Show center box before pointing pairs
-    println!("\nCenter box cells and their possibilities:");
-    let center_box_cells = Board::get_box_cells(4);
-    for (r, c) in center_box_cells.iter() {
-        let poss = board.cells[*r][*c].possibilities();
-        if let Some(v) = board.cells[*r][*c].get_value() {
-            println!("  Cell ({}, {}) = {} (filled)", r, c, v);
-        } else {
-            println!("  Cell ({}, {}) = {:?}", r, c, poss);
-        }
-    }
-    
-    println!("\nLooking for 5 in center box:");
-    let mut cells_with_5 = Vec::new();
-    for (r, c) in &center_box_cells {
-        if !board.cells[*r][*c].is_filled() && board.cells[*r][*c].is_possible(5) {
-            cells_with_5.push((*r, *c));
-        }
-    }
-    println!("  5 can be placed in {} cells", cells_with_5.len());
-    for (r, c) in cells_with_5 {
-        println!("    - Cell ({}, {})", r, c);
-    }
-    
-    println!("\nLooking for 9 in center box:");
-    let mut cells_with_9 = Vec::new();
-    for (r, c) in &center_box_cells {
-        if !board.cells[*r][*c].is_filled() && board.cells[*r][*c].is_possible(9) {
-            cells_with_9.push((*r, *c));
-        }
-    }
-    println!("  9 can be placed in {} cells", cells_with_9.len());
-    for (r, c) in cells_with_9 {
-        println!("    - Cell ({}, {})", r, c);
-    }
-    
-    // Apply pointing pairs specifically
-    println!("\nApplying pointing pairs...");
-    let mut test_board = board.clone();
-    let eliminated = test_board.apply_pointing_pairs();
-    println!("Eliminated {} candidates", eliminated);
-    
-    println!("\nCenter box after pointing pairs:");
-    let mut cells_with_5_after = Vec::new();
-    let mut cells_with_9_after = Vec::new();
-    for (r, c) in &center_box_cells {
-        if !test_board.cells[*r][*c].is_filled() && test_board.cells[*r][*c].is_possible(5) {
-            cells_with_5_after.push((*r, *c));
-        }
-        if !test_board.cells[*r][*c].is_filled() && test_board.cells[*r][*c].is_possible(9) {
-            cells_with_9_after.push((*r, *c));
-        }
-    }
-    println!("  5 can now be placed in {} cells", cells_with_5_after.len());
-    for (r, c) in cells_with_5_after {
-        println!("    - Cell ({}, {})", r, c);
-    }
-    println!("  9 can now be placed in {} cells", cells_with_9_after.len());
-    for (r, c) in cells_with_9_after {
-        println!("    - Cell ({}, {})", r, c);
-    }
-    
-    // Try full solve with naked and hidden singles
-    println!("\n=== Full Solve with Naked & Hidden Singles ===");
-    let mut solve_board = board.clone();
+    // Solve with naked and hidden singles
+    println!("\n=== Solving ===");
     let mut iteration = 0;
     let mut total_moves = 0;
     
     loop {
         iteration += 1;
-        let moves = solve_board.solve_one_iteration();
+        let moves = board.solve_one_iteration();
         total_moves += moves;
         
         println!("Iteration {}: {} cells filled", iteration, moves);
@@ -712,22 +566,22 @@ ___4____6";
             break;
         }
         
-        if solve_board.is_solved() {
+        if board.is_solved() {
             println!("Puzzle solved!");
             break;
         }
     }
     
     println!("\nTotal moves made: {}", total_moves);
-    println!("Board solved: {}", solve_board.is_solved());
-    println!("Board valid: {}", solve_board.is_valid());
+    println!("Board solved: {}", board.is_solved());
+    println!("Board valid: {}", board.is_valid());
     
-    if solve_board.is_solved() {
+    if board.is_solved() {
         println!("\n✓ Puzzle Solved!");
-        println!("{}", solve_board);
+        println!("{}", board);
     } else {
         println!("\nBoard after solving with singles:");
-        println!("{}", solve_board);
+        println!("{}", board);
     }
 }
 
