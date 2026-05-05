@@ -51,10 +51,9 @@ impl Cell {
     fn get_value(&self) -> Option<u8> {
         // Check if exactly one bit is set
         if self.mask.count_ones() == 1 {
-            for i in 1..=9 {
-                if (self.mask & (1 << i)) != 0 {
-                    return Some(i as u8);
-                }
+            let bit_pos = self.mask.trailing_zeros() as u8;
+            if bit_pos >= 1 && bit_pos <= 9 {
+                return Some(bit_pos);
             }
         }
         None
