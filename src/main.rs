@@ -202,18 +202,29 @@ fn main() {
     // Test Phase 1: Core data structure
     let mut board = Board::new();
 
-    // Set some initial values from Vincent's challenge
-    board.set_cell(0, 0, 7);
-    board.set_cell(0, 1, 3);
-    board.set_cell(0, 4, 4);
-    board.set_cell(1, 0, 2);
-    board.set_cell(1, 4, 7);
-    board.set_cell(1, 7, 3);
-    board.set_cell(2, 0, 9);
-    board.set_cell(2, 3, 3);
-    board.set_cell(2, 6, 4);
+    // Vincent's challenge - use _ for empty cells
+    let vincents_challenge = "73___4___
+2___7__3_
+9__3__4__
+571643289
+8237__164
+469821_7_
+__5__7___
+_9__1___8
+___4____6";
 
-    println!("Sudoku Board (partial initialization):");
+    let mut row = 0;
+    for line in vincents_challenge.lines() {
+        for (col, ch) in line.chars().enumerate() {
+            if ch.is_digit(10) {
+                let value = ch.to_digit(10).unwrap() as u8;
+                board.set_cell(row, col, value);
+            }
+        }
+        row += 1;
+    }
+
+    println!("Sudoku Board (Vincent's Challenge):");
     println!("{}", board);
 
     println!("Board is valid: {}", board.is_valid());
