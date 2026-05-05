@@ -805,6 +805,46 @@ impl Board {
         self.apply_xwing();
         self.apply_swordfish();
         
+        // After constraint propagation, check if any cells became naked singles
+        // and propagate their constraints to peers
+        let mut naked_singles_to_propagate = Vec::new();
+        for row in 0..9 {
+            for col in 0..9 {
+                if self.cells[row][col].count_possibilities() == 1 {
+                    if let Some(value) = self.cells[row][col].get_value() {
+                        naked_singles_to_propagate.push((row, col, value));
+                    }
+                }
+            }
+        }
+        
+        // Propagate constraints from newly-discovered naked singles
+        for (row, col, value) in naked_singles_to_propagate {
+            let box_idx = (row / 3) * 3 + (col / 3);
+            
+            // Eliminate value from box peers
+            let box_cells = Self::get_box_cells(box_idx);
+            for (r, c) in box_cells {
+                if (r, c) != (row, col) {
+                    self.cells[r][c].eliminate(value);
+                }
+            }
+            
+            // Eliminate value from row peers
+            for c in 0..9 {
+                if c != col {
+                    self.cells[row][c].eliminate(value);
+                }
+            }
+            
+            // Eliminate value from column peers
+            for r in 0..9 {
+                if r != row {
+                    self.cells[r][col].eliminate(value);
+                }
+            }
+        }
+        
         let mut all_singles = Vec::new();
         let mut seen = 0u128; // Bitmask for 81 cells (row * 9 + col)
 
@@ -829,7 +869,10 @@ impl Board {
         let count = all_singles.len();
 
         for (row, col, value) in all_singles {
-            self.set_cell(row, col, value);
+            // Only set if not already filled (set_cell will propagate constraints)
+            if !self.cells[row][col].is_filled() {
+                self.set_cell(row, col, value);
+            }
         }
 
         // Return the number of cells filled (not candidates eliminated)
@@ -930,6 +973,21 @@ ___4____6";
 
     println!("Initial board:");
     println!("{}", board);
+    if let Some(val) = board.cells[8][1].get_value() {
+        println!("  Value: {}", val);
+    }
+    
+    // Debug: check bottom-left box
+    println!("\nDebug - Bottom-left box cells:");
+    for row in 6..9 {
+        for col in 0..3 {
+            if let Some(val) = board.cells[row][col].get_value() {
+                println!("({},{}) = {} (filled)", row, col, val);
+            } else {
+                println!("({},{}) candidates: {:?}", row, col, board.cells[row][col].possibilities());
+            }
+        }
+    }
 
     // Solve with naked and hidden singles
     println!("\n=== Solving ===");
@@ -957,6 +1015,27 @@ ___4____6";
     println!("\nTotal moves made: {}", total_moves);
     println!("Board solved: {}", board.is_solved());
     println!("Board valid: {}", board.is_valid());
+    
+    // Check for constraint violations (should be none after the fix)
+    let mut has_violations = false;
+    for row in 0..9 {
+        for col in 0..9 {
+            if let Some(filled_val) = board.cells[row][col].get_value() {
+                let box_idx = (row / 3) * 3 + (col / 3);
+                let box_cells = Board::get_box_cells(box_idx);
+                for (r, c) in box_cells {
+                    if (r, c) != (row, col) && board.cells[r][c].is_possible(filled_val) {
+                        println!("ERROR: ({},{}) = {} but ({},{}) still has {} as candidate", 
+                                 row, col, filled_val, r, c, filled_val);
+                        has_violations = true;
+                    }
+                }
+            }
+        }
+    }
+    if !has_violations {
+        println!("✓ Constraint propagation validated - no violations!");
+    }
     
     if board.is_solved() {
         println!("\n✓ Puzzle Solved!");
