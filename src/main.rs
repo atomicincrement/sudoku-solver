@@ -281,24 +281,181 @@ impl Board {
         singles
     }
 
-    /// Phase 4: Solver loop - perform one iteration using naked singles
-    /// Finds all naked singles and fills them in
+    /// Find hidden singles in a specific row
+    /// Returns (row, col, value) for each hidden single found
+    fn find_hidden_singles_in_row(&self, row: usize) -> Vec<(usize, usize, u8)> {
+        let mut result = Vec::new();
+
+        // For each value 1-9, find where it can go in this row
+        for value in 1..=9 {
+            let mut possible_cols = Vec::new();
+            let mut already_placed = false;
+
+            for col in 0..9 {
+                // Skip filled cells
+                if self.cells[row][col].is_filled() {
+                    // If it's already filled with this value, mark it and skip
+                    if let Some(v) = self.cells[row][col].get_value() {
+                        if v == value {
+                            already_placed = true;
+                            break;
+                        }
+                    }
+                } else if self.cells[row][col].is_possible(value) {
+                    possible_cols.push(col);
+                }
+            }
+
+            // If value can only go in one place and isn't already placed, it's a hidden single
+            if !already_placed && possible_cols.len() == 1 {
+                result.push((row, possible_cols[0], value));
+            }
+        }
+
+        result
+    }
+
+    /// Find hidden singles in a specific column
+    /// Returns (row, col, value) for each hidden single found
+    fn find_hidden_singles_in_col(&self, col: usize) -> Vec<(usize, usize, u8)> {
+        let mut result = Vec::new();
+
+        for value in 1..=9 {
+            let mut possible_rows = Vec::new();
+            let mut already_placed = false;
+
+            for row in 0..9 {
+                if self.cells[row][col].is_filled() {
+                    if let Some(v) = self.cells[row][col].get_value() {
+                        if v == value {
+                            already_placed = true;
+                            break;
+                        }
+                    }
+                } else if self.cells[row][col].is_possible(value) {
+                    possible_rows.push(row);
+                }
+            }
+
+            if !already_placed && possible_rows.len() == 1 {
+                result.push((possible_rows[0], col, value));
+            }
+        }
+
+        result
+    }
+
+    /// Find hidden singles in a specific box
+    /// Returns (row, col, value) for each hidden single found
+    fn find_hidden_singles_in_box(&self, box_idx: usize) -> Vec<(usize, usize, u8)> {
+        let mut result = Vec::new();
+        let box_cells = Self::get_box_cells(box_idx);
+
+        for value in 1..=9 {
+            let mut possible_cells = Vec::new();
+            let mut already_placed = false;
+
+            for (r, c) in &box_cells {
+                if self.cells[*r][*c].is_filled() {
+                    if let Some(v) = self.cells[*r][*c].get_value() {
+                        if v == value {
+                            already_placed = true;
+                            break;
+                        }
+                    }
+                } else if self.cells[*r][*c].is_possible(value) {
+                    possible_cells.push((*r, *c));
+                }
+            }
+
+            if !already_placed && possible_cells.len() == 1 {
+                let (r, c) = possible_cells[0];
+                result.push((r, c, value));
+            }
+        }
+
+        result
+    }
+
+    /// Find all hidden singles in the board
+    /// Returns a vector of (row, col, value) tuples
+    fn find_hidden_singles(&self) -> Vec<(usize, usize, u8)> {
+        let mut result = Vec::new();
+        let mut seen = std::collections::HashSet::new();
+
+        // Check all rows
+        for row in 0..9 {
+            for (r, c, v) in self.find_hidden_singles_in_row(row) {
+                let key = (r, c);
+                if !seen.contains(&key) {
+                    result.push((r, c, v));
+                    seen.insert(key);
+                }
+            }
+        }
+
+        // Check all columns
+        for col in 0..9 {
+            for (r, c, v) in self.find_hidden_singles_in_col(col) {
+                let key = (r, c);
+                if !seen.contains(&key) {
+                    result.push((r, c, v));
+                    seen.insert(key);
+                }
+            }
+        }
+
+        // Check all boxes
+        for box_idx in 0..9 {
+            for (r, c, v) in self.find_hidden_singles_in_box(box_idx) {
+                let key = (r, c);
+                if !seen.contains(&key) {
+                    result.push((r, c, v));
+                    seen.insert(key);
+                }
+            }
+        }
+
+        result
+    }
+    /// Phase 4: Solver loop - perform one iteration using naked and hidden singles
+    /// Finds all naked and hidden singles and fills them in
     /// Returns the number of cells filled in this iteration
     fn solve_one_iteration(&mut self) -> usize {
-        let naked_singles = self.find_naked_singles();
-        let count = naked_singles.len();
+        let mut all_singles = Vec::new();
+        let mut seen = std::collections::HashSet::new();
 
-        for (row, col, value) in naked_singles {
+        // Find naked singles
+        for (r, c, v) in self.find_naked_singles() {
+            let key = (r, c);
+            if !seen.contains(&key) {
+                all_singles.push((r, c, v));
+                seen.insert(key);
+            }
+        }
+
+        // Find hidden singles
+        for (r, c, v) in self.find_hidden_singles() {
+            let key = (r, c);
+            if !seen.contains(&key) {
+                all_singles.push((r, c, v));
+                seen.insert(key);
+            }
+        }
+
+        let count = all_singles.len();
+
+        for (row, col, value) in all_singles {
             self.set_cell(row, col, value);
         }
 
         count
     }
 
-    /// Solve using only naked singles strategy
-    /// Applies naked singles repeatedly until no more moves can be made
+    /// Solve using naked and hidden singles strategies
+    /// Applies strategies repeatedly until no more moves can be made
     /// Returns the total number of cells filled
-    fn solve_with_naked_singles(&mut self) -> usize {
+    fn solve_with_singles(&mut self) -> usize {
         let mut total_moves = 0;
 
         loop {
@@ -399,9 +556,25 @@ ___4____6";
     println!("Found {} naked singles", initial_singles.len());
     
     // Apply first iteration
-    println!("\nStep 1 - Applying first iteration of naked singles:");
+    println!("\nStep 1 - Applying first iteration of naked and hidden singles:");
+    
+    let naked_before = board.find_naked_singles();
+    let hidden_before = board.find_hidden_singles();
+    
+    println!("Found {} naked singles, {} hidden singles", naked_before.len(), hidden_before.len());
+    
+    if !hidden_before.is_empty() {
+        println!("Hidden singles found:");
+        for (r, c, v) in hidden_before.iter().take(5) {
+            println!("  Cell ({}, {}) = {} (hidden single)", r, c, v);
+        }
+        if hidden_before.len() > 5 {
+            println!("  ... and {} more", hidden_before.len() - 5);
+        }
+    }
+    
     let moves_step_1 = board.solve_one_iteration();
-    println!("Filled {} cells with naked singles", moves_step_1);
+    println!("Filled {} cells total", moves_step_1);
     
     if moves_step_1 > 0 {
         println!("\nBoard after step 1:");
@@ -425,13 +598,36 @@ ___4____6";
         }
     }
     
-    // Try full solve with naked singles only
-    println!("\n=== Full Solve with Naked Singles Only ===");
+    // Test hidden singles in step 0
+    println!("\n=== Testing Hidden Singles ===");
+    println!("\nStep 0 - Finding hidden singles before any moves:");
+    let hidden_singles = board.find_hidden_singles();
+    println!("Found {} hidden singles:", hidden_singles.len());
+    
+    if !hidden_singles.is_empty() {
+        for (r, c, v) in hidden_singles.iter().take(10) {
+            println!("  Cell ({}, {}) = {} (hidden single)", r, c, v);
+        }
+        if hidden_singles.len() > 10 {
+            println!("  ... and {} more", hidden_singles.len() - 10);
+        }
+    }
+    
+    // Try full solve with naked and hidden singles
+    println!("\n=== Full Solve with Naked & Hidden Singles ===");
     let mut solve_board = board.clone();
-    let total_moves = solve_board.solve_with_naked_singles();
+    let total_moves = solve_board.solve_with_singles();
     println!("Total moves made: {}", total_moves);
     println!("Board solved: {}", solve_board.is_solved());
     println!("Board valid: {}", solve_board.is_valid());
+    
+    if solve_board.is_solved() {
+        println!("\n✓ Puzzle Solved!");
+        println!("{}", solve_board);
+    } else {
+        println!("\nBoard after solving with singles:");
+        println!("{}", solve_board);
+    }
 }
 
 impl Clone for Board {
