@@ -418,10 +418,75 @@ impl Board {
 
         result
     }
+
+    /// Apply pointing pairs/box-line reduction
+    /// If a value in a box appears only in one row/column,
+    /// eliminate it from that row/column outside the box
+    /// Returns the number of candidates eliminated
+    fn apply_pointing_pairs(&mut self) -> usize {
+        let mut eliminated = 0;
+
+        // For each box
+        for box_idx in 0..9 {
+            let box_cells = Self::get_box_cells(box_idx);
+            let box_start_row = (box_idx / 3) * 3;
+            let box_start_col = (box_idx % 3) * 3;
+
+            // For each value 1-9
+            for value in 1..=9 {
+                let mut rows_with_value = std::collections::HashSet::new();
+                let mut cols_with_value = std::collections::HashSet::new();
+                let mut found_unfilled = false;
+
+                // Find which rows and columns in this box can have this value
+                for (r, c) in &box_cells {
+                    if !self.cells[*r][*c].is_filled() && self.cells[*r][*c].is_possible(value) {
+                        rows_with_value.insert(*r);
+                        cols_with_value.insert(*c);
+                        found_unfilled = true;
+                    }
+                }
+
+                // If value appears in only one row within this box
+                if found_unfilled && rows_with_value.len() == 1 {
+                    let target_row = *rows_with_value.iter().next().unwrap();
+                    // Eliminate this value from rest of row outside this box
+                    for col in 0..9 {
+                        if col < box_start_col || col >= box_start_col + 3 {
+                            if self.cells[target_row][col].is_possible(value) {
+                                self.cells[target_row][col].eliminate(value);
+                                eliminated += 1;
+                            }
+                        }
+                    }
+                }
+
+                // If value appears in only one column within this box
+                if found_unfilled && cols_with_value.len() == 1 {
+                    let target_col = *cols_with_value.iter().next().unwrap();
+                    // Eliminate this value from rest of column outside this box
+                    for row in 0..9 {
+                        if row < box_start_row || row >= box_start_row + 3 {
+                            if self.cells[row][target_col].is_possible(value) {
+                                self.cells[row][target_col].eliminate(value);
+                                eliminated += 1;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        eliminated
+    }
+
     /// Phase 4: Solver loop - perform one iteration using naked and hidden singles
     /// Finds all naked and hidden singles and fills them in
     /// Returns the number of cells filled in this iteration
     fn solve_one_iteration(&mut self) -> usize {
+        // First, apply constraint propagation techniques
+        self.apply_pointing_pairs();
+        
         let mut all_singles = Vec::new();
         let mut seen = std::collections::HashSet::new();
 
@@ -449,6 +514,7 @@ impl Board {
             self.set_cell(row, col, value);
         }
 
+        // Return the number of cells filled (not candidates eliminated)
         count
     }
 
@@ -598,19 +664,69 @@ ___4____6";
         }
     }
     
-    // Test hidden singles in step 0
-    println!("\n=== Testing Hidden Singles ===");
-    println!("\nStep 0 - Finding hidden singles before any moves:");
-    let hidden_singles = board.find_hidden_singles();
-    println!("Found {} hidden singles:", hidden_singles.len());
+    // Test pointing pairs in the center box
+    println!("\n=== Testing Pointing Pairs - Center Box (Box 4) ===");
     
-    if !hidden_singles.is_empty() {
-        for (r, c, v) in hidden_singles.iter().take(10) {
-            println!("  Cell ({}, {}) = {} (hidden single)", r, c, v);
+    // Show center box before pointing pairs
+    println!("\nCenter box cells and their possibilities:");
+    let center_box_cells = Board::get_box_cells(4);
+    for (r, c) in center_box_cells.iter() {
+        let poss = board.cells[*r][*c].possibilities();
+        if let Some(v) = board.cells[*r][*c].get_value() {
+            println!("  Cell ({}, {}) = {} (filled)", r, c, v);
+        } else {
+            println!("  Cell ({}, {}) = {:?}", r, c, poss);
         }
-        if hidden_singles.len() > 10 {
-            println!("  ... and {} more", hidden_singles.len() - 10);
+    }
+    
+    println!("\nLooking for 5 in center box:");
+    let mut cells_with_5 = Vec::new();
+    for (r, c) in &center_box_cells {
+        if !board.cells[*r][*c].is_filled() && board.cells[*r][*c].is_possible(5) {
+            cells_with_5.push((*r, *c));
         }
+    }
+    println!("  5 can be placed in {} cells", cells_with_5.len());
+    for (r, c) in cells_with_5 {
+        println!("    - Cell ({}, {})", r, c);
+    }
+    
+    println!("\nLooking for 9 in center box:");
+    let mut cells_with_9 = Vec::new();
+    for (r, c) in &center_box_cells {
+        if !board.cells[*r][*c].is_filled() && board.cells[*r][*c].is_possible(9) {
+            cells_with_9.push((*r, *c));
+        }
+    }
+    println!("  9 can be placed in {} cells", cells_with_9.len());
+    for (r, c) in cells_with_9 {
+        println!("    - Cell ({}, {})", r, c);
+    }
+    
+    // Apply pointing pairs specifically
+    println!("\nApplying pointing pairs...");
+    let mut test_board = board.clone();
+    let eliminated = test_board.apply_pointing_pairs();
+    println!("Eliminated {} candidates", eliminated);
+    
+    println!("\nCenter box after pointing pairs:");
+    let mut cells_with_5_after = Vec::new();
+    let mut cells_with_9_after = Vec::new();
+    for (r, c) in &center_box_cells {
+        if !test_board.cells[*r][*c].is_filled() && test_board.cells[*r][*c].is_possible(5) {
+            cells_with_5_after.push((*r, *c));
+        }
+        if !test_board.cells[*r][*c].is_filled() && test_board.cells[*r][*c].is_possible(9) {
+            cells_with_9_after.push((*r, *c));
+        }
+    }
+    println!("  5 can now be placed in {} cells", cells_with_5_after.len());
+    for (r, c) in cells_with_5_after {
+        println!("    - Cell ({}, {})", r, c);
+    }
+    println!("  9 can now be placed in {} cells", cells_with_9_after.len());
+    for (r, c) in cells_with_9_after {
+        println!("    - Cell ({}, {})", r, c);
     }
     
     // Try full solve with naked and hidden singles
