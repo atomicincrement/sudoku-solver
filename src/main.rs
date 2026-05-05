@@ -356,15 +356,15 @@ impl Board {
     /// Returns a vector of (row, col, value) tuples
     fn find_hidden_singles(&self) -> Vec<(usize, usize, u8)> {
         let mut result = Vec::new();
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = 0u128; // Bitmask for 81 cells (row * 9 + col)
 
         // Check all rows
         for row in 0..9 {
             for (r, c, v) in self.find_hidden_singles_in_row(row) {
-                let key = (r, c);
-                if !seen.contains(&key) {
+                let bit_index = r * 9 + c;
+                if (seen & (1u128 << bit_index)) == 0 {
                     result.push((r, c, v));
-                    seen.insert(key);
+                    seen |= 1u128 << bit_index;
                 }
             }
         }
@@ -372,10 +372,10 @@ impl Board {
         // Check all columns
         for col in 0..9 {
             for (r, c, v) in self.find_hidden_singles_in_col(col) {
-                let key = (r, c);
-                if !seen.contains(&key) {
+                let bit_index = r * 9 + c;
+                if (seen & (1u128 << bit_index)) == 0 {
                     result.push((r, c, v));
-                    seen.insert(key);
+                    seen |= 1u128 << bit_index;
                 }
             }
         }
@@ -383,10 +383,10 @@ impl Board {
         // Check all boxes
         for box_idx in 0..9 {
             for (r, c, v) in self.find_hidden_singles_in_box(box_idx) {
-                let key = (r, c);
-                if !seen.contains(&key) {
+                let bit_index = r * 9 + c;
+                if (seen & (1u128 << bit_index)) == 0 {
                     result.push((r, c, v));
-                    seen.insert(key);
+                    seen |= 1u128 << bit_index;
                 }
             }
         }
@@ -463,23 +463,23 @@ impl Board {
         self.apply_pointing_pairs();
         
         let mut all_singles = Vec::new();
-        let mut seen = std::collections::HashSet::new();
+        let mut seen = 0u128; // Bitmask for 81 cells (row * 9 + col)
 
         // Find naked singles
         for (r, c, v) in self.find_naked_singles() {
-            let key = (r, c);
-            if !seen.contains(&key) {
+            let bit_index = r * 9 + c;
+            if (seen & (1u128 << bit_index)) == 0 {
                 all_singles.push((r, c, v));
-                seen.insert(key);
+                seen |= 1u128 << bit_index;
             }
         }
 
         // Find hidden singles
         for (r, c, v) in self.find_hidden_singles() {
-            let key = (r, c);
-            if !seen.contains(&key) {
+            let bit_index = r * 9 + c;
+            if (seen & (1u128 << bit_index)) == 0 {
                 all_singles.push((r, c, v));
-                seen.insert(key);
+                seen |= 1u128 << bit_index;
             }
         }
 
