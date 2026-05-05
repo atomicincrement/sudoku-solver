@@ -697,8 +697,28 @@ ___4____6";
     // Try full solve with naked and hidden singles
     println!("\n=== Full Solve with Naked & Hidden Singles ===");
     let mut solve_board = board.clone();
-    let total_moves = solve_board.solve_with_singles();
-    println!("Total moves made: {}", total_moves);
+    let mut iteration = 0;
+    let mut total_moves = 0;
+    
+    loop {
+        iteration += 1;
+        let moves = solve_board.solve_one_iteration();
+        total_moves += moves;
+        
+        println!("Iteration {}: {} cells filled", iteration, moves);
+        
+        if moves == 0 {
+            println!("No more progress - solver stopped");
+            break;
+        }
+        
+        if solve_board.is_solved() {
+            println!("Puzzle solved!");
+            break;
+        }
+    }
+    
+    println!("\nTotal moves made: {}", total_moves);
     println!("Board solved: {}", solve_board.is_solved());
     println!("Board valid: {}", solve_board.is_valid());
     
