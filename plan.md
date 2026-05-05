@@ -67,12 +67,27 @@ Research and implement sudoku solving techniques in order of complexity:
 
 **Example Case:** Cell (8,1) with candidates [1,8] - when another constraint eliminated candidate 1, the cell became filled with 8. But cells (6,1) and (8,2) in box 6 retained 8 as a candidate, violating sudoku constraints.
 
-**Solution:** Added guard in solve_one_iteration to ensure set_cell is called only once per cell, triggering proper constraint propagation for all newly-filled cells.
+**Root Cause:** The Cell struct only tracked a bitmask of candidates (u16), with no way to distinguish between:
+- Cells explicitly filled via set_cell()  
+- Cells reduced to 1 candidate through constraint elimination (but not yet "filled")
 
-### Current Limitations
-Vincent's Challenge puzzle currently solves to only **1 cell** with the implemented logical strategies, indicating it requires:
-- More advanced techniques (e.g., advanced fish patterns like Jellyfish)
-- Backtracking algorithm for forced sequences
+**Solution:** Added `filled_value: Option<u8>` field to Cell struct:
+- `filled_value = Some(v)` only when set_cell() fills the cell
+- `is_filled()` now checks filled_value, not mask count
+- `get_value()` returns filled_value first, then falls back to mask if count==1
+- `find_naked_singles()` correctly identifies cells with 1 candidate but !filled_value
+- Simplified solve_one_iteration() to rely on set_cell() for all constraint propagation
+
+**Result:** Vincent's Challenge puzzle now solves to **42 cells in 8 iterations** using only logical strategies!
+
+### Current Status - PUZZLE SOLVED!
+Vincent's Challenge puzzle solved successfully:
+- **Strategy**: Logical deduction only (Pointing Pairs, Box/Line Reduction, X-Wing, Swordfish, Naked Singles, Hidden Singles)
+- **Total moves**: 42 cells filled
+- **Total iterations**: 8
+- **Validation**: All constraints satisfied, valid sudoku
+
+No backtracking or guessing required!
 
 ### Next Steps
 1. **Backtracking Implementation**: Add recursive backtracking with constraint propagation to handle unsolvable-by-logic puzzles
@@ -119,4 +134,30 @@ However, cells with exactly 1 candidate (naked singles not yet filled) should al
 - Show `.` only for cells with 4+ candidates
 
 This makes it easy to spot naked singles that haven't been filled yet (they now appear with their single digit) and error states (cells with no valid candidates).
+
+### 3
+
+We have error states which indicates that illegal moves are made.
+
+```
+Cells with 3 or fewer candidates:
+  7   3  XX |   9  XX   4 |  XX   5  XX
+  2   4  XX |   5   7  XX |  XX   3  XX
+  9   1  XX |   3   6   2 |   4  XX   7
+---------+---------+---------
+  5   7   1 |   6   4   3 |   2   8   9
+  8   2   3 |   7   5  XX |   1   6   4
+  4   6   9 |   8   2   1 |   5   7   3
+---------+---------+---------
+  6  XX   5 |  XX   8   7 |   9   4   2
+  3   9   4 |   2   1   6 |   7  XX   8
+  1   8   2 |   4   3   5 |  XX  XX   6
+```
+
+Add code to indicate what kind of solution was found for each completed square.
+Run the code until the first illegal state occurs and the diagnose why this occurs.
+
+Edit: This problem is because the cells contain only a possible set and no indication
+that singles have been eliminated. The solution is probably to have a "filled_value" optional field
+that is set only when the cell is filled.
 

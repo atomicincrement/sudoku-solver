@@ -13,13 +13,14 @@ const ALL_POSSIBLE: CellMask = 0x3FE; // Binary: 1111111110 (bits 1-9 set)
 /// Represents a single cell on the board
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Cell {
-    mask: CellMask, // Bitmask of possible values
+    mask: CellMask,              // Bitmask of possible values
+    filled_value: Option<u8>,    // Set only when cell has been explicitly filled (via set_cell)
 }
 
 impl Cell {
     /// Create a new empty cell with all possibilities
     fn new_empty() -> Self {
-        Cell { mask: ALL_POSSIBLE }
+        Cell { mask: ALL_POSSIBLE, filled_value: None }
     }
 
     /// Create a cell with a single fixed value (1-9)
@@ -29,6 +30,7 @@ impl Cell {
         }
         Cell {
             mask: 1 << value,
+            filled_value: Some(value),
         }
     }
 
@@ -47,9 +49,12 @@ impl Cell {
         }
     }
 
-    /// Get the fixed value if this cell has exactly one possibility
+    /// Get the fixed value if this cell has been filled or has exactly one possibility
     fn get_value(&self) -> Option<u8> {
-        // Check if exactly one bit is set
+        if let Some(v) = self.filled_value {
+            return Some(v);
+        }
+        // If not explicitly filled, check if mask has exactly one bit set
         if self.mask.count_ones() == 1 {
             let bit_pos = self.mask.trailing_zeros() as u8;
             if bit_pos >= 1 && bit_pos <= 9 {
@@ -59,19 +64,27 @@ impl Cell {
         None
     }
 
-    /// Check if this cell is filled (has exactly one possibility)
+    /// Check if this cell is filled (has been explicitly set to a value)
     fn is_filled(&self) -> bool {
-        self.get_value().is_some()
+        self.filled_value.is_some()
     }
 
     /// Get all possible values as a vector
     fn possibilities(&self) -> Vec<u8> {
-        (1..=9).filter(|&v| self.is_possible(v)).collect()
+        if self.filled_value.is_some() {
+            self.filled_value.map(|v| vec![v]).unwrap_or_default()
+        } else {
+            (1..=9).filter(|&v| self.is_possible(v)).collect()
+        }
     }
 
     /// Count the number of possibilities
     fn count_possibilities(&self) -> u32 {
-        self.mask.count_ones()
+        if self.filled_value.is_some() {
+            1
+        } else {
+            self.mask.count_ones()
+        }
     }
 }
 
@@ -271,20 +284,17 @@ impl Board {
     }
 
     /// Phase 3: Find all naked singles
-    /// A naked single is a cell with exactly one possible value
+    /// A naked single is a cell with exactly one possible value that hasn't been explicitly filled yet
     /// Returns a vector of (row, col, value) tuples for each naked single found
     fn find_naked_singles(&self) -> Vec<(usize, usize, u8)> {
         let mut singles = Vec::new();
 
         for row in 0..9 {
             for col in 0..9 {
-                // Skip already filled cells
-                if !self.cells[row][col].is_filled() {
-                    // Check if this cell has exactly one possibility
-                    if self.cells[row][col].count_possibilities() == 1 {
-                        if let Some(value) = self.cells[row][col].get_value() {
-                            singles.push((row, col, value));
-                        }
+                // Find cells that have exactly 1 candidate but haven't been explicitly filled
+                if !self.cells[row][col].is_filled() && self.cells[row][col].count_possibilities() == 1 {
+                    if let Some(value) = self.cells[row][col].get_value() {
+                        singles.push((row, col, value));
                     }
                 }
             }
@@ -804,46 +814,6 @@ impl Board {
         self.apply_box_line_reduction();
         self.apply_xwing();
         self.apply_swordfish();
-        
-        // After constraint propagation, check if any cells became naked singles
-        // and propagate their constraints to peers
-        let mut naked_singles_to_propagate = Vec::new();
-        for row in 0..9 {
-            for col in 0..9 {
-                if self.cells[row][col].count_possibilities() == 1 {
-                    if let Some(value) = self.cells[row][col].get_value() {
-                        naked_singles_to_propagate.push((row, col, value));
-                    }
-                }
-            }
-        }
-        
-        // Propagate constraints from newly-discovered naked singles
-        for (row, col, value) in naked_singles_to_propagate {
-            let box_idx = (row / 3) * 3 + (col / 3);
-            
-            // Eliminate value from box peers
-            let box_cells = Self::get_box_cells(box_idx);
-            for (r, c) in box_cells {
-                if (r, c) != (row, col) {
-                    self.cells[r][c].eliminate(value);
-                }
-            }
-            
-            // Eliminate value from row peers
-            for c in 0..9 {
-                if c != col {
-                    self.cells[row][c].eliminate(value);
-                }
-            }
-            
-            // Eliminate value from column peers
-            for r in 0..9 {
-                if r != row {
-                    self.cells[r][col].eliminate(value);
-                }
-            }
-        }
         
         let mut all_singles = Vec::new();
         let mut seen = 0u128; // Bitmask for 81 cells (row * 9 + col)
