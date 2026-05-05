@@ -409,22 +409,22 @@ impl Board {
 
             // For each value 1-9
             for value in 1..=9 {
-                let mut rows_with_value = std::collections::HashSet::new();
-                let mut cols_with_value = std::collections::HashSet::new();
+                let mut rows_with_value = 0u16; // Bitmask for rows 0-8
+                let mut cols_with_value = 0u16; // Bitmask for cols 0-8
                 let mut found_unfilled = false;
 
                 // Find which rows and columns in this box can have this value
                 for (r, c) in &box_cells {
                     if !self.cells[*r][*c].is_filled() && self.cells[*r][*c].is_possible(value) {
-                        rows_with_value.insert(*r);
-                        cols_with_value.insert(*c);
+                        rows_with_value |= 1u16 << r;
+                        cols_with_value |= 1u16 << c;
                         found_unfilled = true;
                     }
                 }
 
                 // If value appears in only one row within this box
-                if found_unfilled && rows_with_value.len() == 1 {
-                    let target_row = *rows_with_value.iter().next().unwrap();
+                if found_unfilled && rows_with_value.count_ones() == 1 {
+                    let target_row = rows_with_value.trailing_zeros() as usize;
                     // Eliminate this value from rest of row outside this box
                     for col in 0..9 {
                         if col < box_start_col || col >= box_start_col + 3 {
@@ -437,8 +437,8 @@ impl Board {
                 }
 
                 // If value appears in only one column within this box
-                if found_unfilled && cols_with_value.len() == 1 {
-                    let target_col = *cols_with_value.iter().next().unwrap();
+                if found_unfilled && cols_with_value.count_ones() == 1 {
+                    let target_col = cols_with_value.trailing_zeros() as usize;
                     // Eliminate this value from rest of column outside this box
                     for row in 0..9 {
                         if row < box_start_row || row >= box_start_row + 3 {
